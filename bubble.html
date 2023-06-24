@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test Floating Bubbles</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        background-image: url("./bubble-bg.jpg");
+        background-size: cover;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <script>
+      // Get the canvas element
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      // Set the canvas size
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      // Bubble class
+      class Bubble {
+        constructor(x, y, radius, speedX, speedY) {
+          this.x = x;
+          this.y = y;
+          this.radius = radius;
+          this.speedX = speedX;
+          this.speedY = speedY;
+          this.color = getRandomColor();
+          this.opacity = 0.8;
+        }
+
+        draw() {
+          const gradient = ctx.createRadialGradient(
+            this.x,
+            this.y,
+            0,
+            this.x,
+            this.y,
+            this.radius
+          );
+          gradient.addColorStop(0, "rgba(255, 255, 255, 1)"); // Start with an opaque white color
+          gradient.addColorStop(0.4, "rgba(255, 255, 255, 1)"); // Start with an opaque white color
+          gradient.addColorStop(1, this.color); // End with the bubble's color
+
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+
+          // Add text inside the bubble
+          const maxTextWidth = this.radius * 2 * 0.8; // Adjust the multiplier for text width constraint
+          const lineHeight = this.radius * 0.17; // Adjust the multiplier for line height
+          const words =
+            "เป็นนิทรรศการ ที่ดีมากสวยงาม ประทับใจอยากให้ มีจัดแบบนี้บ่อยๆ ขออนุโมทนาบุญค่ะ จาก กนกพร".split(
+              " "
+            ); // Replace "Text" with your desired text
+
+          // ctx.fillStyle = "blue"; // Set the text color to white
+          ctx.font = lineHeight + `px Arial`; // Set the font size and family
+          ctx.fillStyle = "blue";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          let line = "";
+          let lineCount = 0;
+          const startY = this.y - (words.length * 20) / 3;
+          for (let i = 0; i < words.length; i++) {
+            const testLine = line + words[i] + " ";
+            const metrics = ctx.measureText(testLine);
+            const testWidth = metrics.width;
+            if (testWidth > maxTextWidth && i > 0) {
+              ctx.fillText(line, this.x, startY + lineCount * 20);
+              line = words[i] + " ";
+              lineCount++;
+            } else {
+              line = testLine;
+            }
+          }
+          ctx.fillText(line, this.x, startY + lineCount * 20);
+          ctx.closePath();
+        }
+
+        update() {
+          this.x += this.speedX;
+          this.y += this.speedY;
+
+          // Check collision with canvas edges
+          if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
+            this.speedX *= -1;
+          }
+          if (
+            this.y + this.radius > canvas.height ||
+            this.y - this.radius < 0
+          ) {
+            this.speedY *= -1;
+          }
+
+          // Check collision with other bubbles
+          for (let i = 0; i < bubbles.length; i++) {
+            const otherBubble = bubbles[i];
+            if (this !== otherBubble) {
+              const dx = otherBubble.x - this.x;
+              const dy = otherBubble.y - this.y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+
+              if (distance < this.radius + otherBubble.radius) {
+                const angle = Math.atan2(dy, dx);
+                const sin = Math.sin(angle);
+                const cos = Math.cos(angle);
+
+                // Rotate bubble velocities
+                const thisSpeed = Math.sqrt(
+                  this.speedX * this.speedX + this.speedY * this.speedY
+                );
+                const otherSpeed = Math.sqrt(
+                  otherBubble.speedX * otherBubble.speedX +
+                    otherBubble.speedY * otherBubble.speedY
+                );
+
+                const thisDirection = Math.atan2(this.speedY, this.speedX);
+                const otherDirection = Math.atan2(
+                  otherBubble.speedY,
+                  otherBubble.speedX
+                );
+
+                const thisNewVelX =
+                  otherSpeed * Math.cos(otherDirection) * Math.cos(angle) +
+                  thisSpeed *
+                    Math.sin(thisDirection) *
+                    Math.cos(angle + Math.PI / 2);
+                const thisNewVelY =
+                  otherSpeed * Math.cos(otherDirection) * Math.sin(angle) +
+                  thisSpeed *
+                    Math.sin(thisDirection) *
+                    Math.sin(angle + Math.PI / 2);
+                const otherNewVelX =
+                  thisSpeed * Math.cos(thisDirection) * Math.cos(angle) +
+                  otherSpeed *
+                    Math.sin(otherDirection) *
+                    Math.cos(angle + Math.PI / 2);
+                const otherNewVelY =
+                  thisSpeed * Math.cos(thisDirection) * Math.sin(angle) +
+                  otherSpeed *
+                    Math.sin(otherDirection) *
+                    Math.sin(angle + Math.PI / 2);
+
+                // Update bubble velocities
+                this.speedX = thisNewVelX;
+                this.speedY = thisNewVelY;
+                otherBubble.speedX = otherNewVelX;
+                otherBubble.speedY = otherNewVelY;
+
+                // Separate the overlapping bubbles
+                const overlap =
+                  0.5 * (this.radius + otherBubble.radius - distance + 1);
+                this.x -= overlap * Math.cos(angle);
+                this.y -= overlap * Math.sin(angle);
+                otherBubble.x += overlap * Math.cos(angle);
+                otherBubble.y += overlap * Math.sin(angle);
+
+                // Add draw method for the collided bubbles
+                this.draw();
+                otherBubble.draw();
+              }
+            }
+          }
+
+          this.draw();
+        }
+      }
+
+      function getRandomColor() {
+        const hue = Math.floor(Math.random() * 360); // Random hue value from 0 to 359
+        const saturation = Math.floor(Math.random() * 20) + 70; // Random saturation value from 80 to 99
+        const lightness = Math.floor(Math.random() * 10) + 60; // Random lightness value from 70 to 79
+        const alpha = 1; // Random alpha value from 0.6 to 1
+        return `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+      }
+
+      // Create an array to store the bubbles
+      const bubbles = [];
+      const FixRadius = 100;
+      function handleClick(event) {
+        const radius = FixRadius;
+        const speedX = (Math.random() - 0.5) * 2;
+        const speedY = -(Math.random() * 1 + 1); // Negative speed for upward float
+
+        const x = canvas.width / 2; // Set x coordinate to center of the canvas
+        const y = canvas.height - radius * 3; // Set y coordinate to bottom of the canvas
+        const bubble = new Bubble(x, y, radius, speedX, speedY);
+
+        bubble.opacity = 0; // Set initial opacity to 0 for fade-in effect
+
+        // Animate the fade-in effect
+        let opacity = 0;
+        const fadeInInterval = setInterval(() => {
+          opacity += 0.1; // Increase opacity by 0.1 on each interval
+          bubble.opacity = opacity; // Update the opacity of the bubble
+
+          if (opacity >= 1) {
+            // Stop the fade-in animation once opacity reaches 1
+            clearInterval(fadeInInterval);
+          }
+        }, 1000); // Adjust the interval duration for desired fade-in speed
+
+        bubbles.push(bubble);
+      }
+
+      function handleRightClick(event) {
+        event.preventDefault(); // Prevent the default context menu
+        if (bubbles.length > 0) {
+          const bubbleToRemove = bubbles[0]; // Get the first bubble to remove
+          bubbleToRemove.speedX = 0;
+          bubbleToRemove.speedY = 0;
+
+          // Animate the fade-out effect
+          let opacity = 1;
+          const fadeOutInterval = setInterval(() => {
+            opacity -= 0.1; // Reduce opacity by 0.1 on each interval
+            bubbleToRemove.opacity = opacity; // Update the opacity of the bubble
+
+            if (opacity <= 0) {
+              // Remove the bubble from the array once opacity reaches 0
+              clearInterval(fadeOutInterval);
+              bubbles.shift();
+              console.log("RIGHT", bubbles.length);
+            }
+          }, 100); // Adjust the interval duration for desired fade-out speed
+        }
+      }
+
+      canvas.addEventListener("contextmenu", handleRightClick);
+      canvas.addEventListener("click", handleClick);
+
+      // Function to initialize bubbles
+      function initBubbles(numBubbles) {
+        for (let i = 0; i < numBubbles; i++) {
+          const radius = FixRadius;
+          const x = Math.random() * (canvas.width - radius * 2) + radius;
+          const y = Math.random() * (canvas.height - radius * 2) + radius;
+          const speedX = (Math.random() - 0.5) * 2;
+          const speedY = (Math.random() - 0.5) * 2;
+
+          bubbles.push(new Bubble(x, y, radius, speedX, speedY));
+        }
+      }
+
+      // Animation loop
+      function animate() {
+        requestAnimationFrame(animate);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        // skyGradient.addColorStop(0, "#87ceeb"); // Bright blue
+        // skyGradient.addColorStop(0.6, "#1e90ff");
+        // skyGradient.addColorStop(1, "#000033"); // Deep blue
+        // ctx.fillStyle = skyGradient;
+        // ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // let image = new Image();
+        // image.src = "./bubble-bg.jpg";
+        // const pattern = ctx.createPatttern(img, "repeat");
+        // ctx.fillStyle = pattern;
+        // ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // ctx.drawImage(image, canvas.width, canvas.height);
+
+        bubbles.forEach((bubble) => {
+          bubble.update();
+        });
+      }
+
+      // Initialize bubbles
+      initBubbles(10);
+
+      // Start the animation
+      animate();
+    </script>
+  </body>
+</html>
